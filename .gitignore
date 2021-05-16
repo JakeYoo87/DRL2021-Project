@@ -1,0 +1,8 @@
+.idea/
+env/
+*.pth
+__pycache__
+*.t7
+checkpoint/
+*.tfrecord
+*.pth
