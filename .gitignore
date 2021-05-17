@@ -6,3 +6,4 @@ __pycache__
 checkpoint/
 *.tfrecord
 *.pth
+datasets/cifar10
