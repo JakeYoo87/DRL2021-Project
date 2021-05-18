@@ -6,8 +6,8 @@ xlrd
 scipy
 scikit-learn
 scikit-image
-torch==1.6.0
-torchvision==0.7.0
+torch=
+torchvision
 tqdm
 tensorflow-gpu==1.15
 tensorflow==1.15
