@@ -23,8 +23,8 @@ class NASCifar10(object):
         self.y_test = []
         self.costs = []
 
-        self.y_star_valid = 0.04944576819737756  # lowest mean validation error
-        self.y_star_test = 0.056824247042338016  # lowest mean test error
+        self.y_star_valid = 1 - 0.04944576819737756  # lowest mean validation error
+        self.y_star_test = 1 - 0.056824247042338016  # lowest mean test error
 
     def reset_tracker(self):
         # __init__() sans the data loading for multiple runs
@@ -36,6 +36,15 @@ class NASCifar10(object):
     @staticmethod
     def objective_function(self, config):
         pass
+
+    def get_runtime(self):
+        return sum(self.costs)
+
+    def get_best_valid(self):
+        return max(self.y_valid)
+
+    def get_best_test(self):
+        return max(self.y_test)
 
     def record_invalid(self, config, valid, test, costs):
         self.X.append(config)
@@ -49,12 +58,14 @@ class NASCifar10(object):
 
         # compute mean test error for the final budget
         _, metrics = self.dataset.get_metrics_from_spec(model_spec)
-        mean_test_error = 1 - np.mean([metrics[108][i]["final_test_accuracy"] for i in range(3)])
-        self.y_test.append(mean_test_error)
+        # mean_test_error = 1 - np.mean([metrics[108][i]["final_test_accuracy"] for i in range(3)])
+        mean_test = np.mean([metrics[108][i]["final_test_accuracy"] for i in range(3)])
+        self.y_test.append(mean_test)
 
         # compute validation error for the chosen budget
-        valid_error = 1 - data["validation_accuracy"]
-        self.y_valid.append(valid_error)
+        # valid_error = 1 - data["validation_accuracy"]
+        valid = data["validation_accuracy"]
+        self.y_valid.append(valid)
 
         runtime = data["training_time"]
         self.costs.append(runtime)
@@ -65,34 +76,38 @@ class NASCifar10(object):
 
     def get_results(self, ignore_invalid_configs=False):
 
-        regret_validation = []
-        regret_test = []
+        validation = []
+        test = []
         runtime = []
         rt = 0
 
-        inc_valid = np.inf
-        inc_test = np.inf
+        # inc_valid = np.inf
+        # inc_test = np.inf
+        inc_valid = 0
+        inc_test = 0
 
         for i in range(len(self.X)):
 
             if ignore_invalid_configs and self.costs[i] == 0:
                 continue
 
-            if inc_valid > self.y_valid[i]:
+            if inc_valid < self.y_valid[i]:
                 inc_valid = self.y_valid[i]
                 inc_test = self.y_test[i]
 
-            regret_validation.append(float(inc_valid - self.y_star_valid))
-            regret_test.append(float(inc_test - self.y_star_test))
+            # regret_validation.append(float(inc_valid - self.y_star_valid))
+            # regret_test.append(float(inc_test - self.y_star_test))
+            validation.append(float(inc_valid))
+            test.append(float(inc_test))
             rt += self.costs[i]
             runtime.append(float(rt))
 
         res = dict()
-        res['regret_validation'] = regret_validation
-        res['regret_test'] = regret_test
+        res['validation'] = validation
+        res['test'] = test
         res['runtime'] = runtime
 
-        return res
+        return res, len(runtime)
 
 
 class NASCifar10A(NASCifar10):
@@ -109,8 +124,10 @@ class NASCifar10A(NASCifar10):
 
         # if not graph_util.is_full_dag(matrix) or graph_util.num_edges(matrix) > MAX_EDGES:
         if graph_util.num_edges(matrix) > MAX_EDGES:
-            self.record_invalid(config, 1, 1, 0)
-            return 1, 0
+            # self.record_invalid(config, 1, 1, 0)
+            # return 1, 0
+            self.record_invalid(config, 0, 0, 0)
+            return
 
         labeling = [config["op_node_%d" % i] for i in range(5)]
         labeling = ['input'] + list(labeling) + ['output']
@@ -118,11 +135,14 @@ class NASCifar10A(NASCifar10):
         try:
             data = self.dataset.query(model_spec, epochs=budget)
         except api.OutOfDomainError:
-            self.record_invalid(config, 1, 1, 0)
-            return 1, 0
+            # self.record_invalid(config, 1, 1, 0)
+            # return 1, 0
+            self.record_invalid(config, 0, 0, 0)
+            return
 
         self.record_valid(config, data, model_spec)
-        return 1 - data["validation_accuracy"], data["training_time"]
+        # return 1 - data["validation_accuracy"], data["training_time"]
+        return
 
     @staticmethod
     def get_configuration_space():

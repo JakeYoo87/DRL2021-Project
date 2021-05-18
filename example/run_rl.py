@@ -21,7 +21,7 @@ import ConfigSpace
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from example.nas_cifar10 import NASCifar10A, NASCifar10B
+from nasbench101_cifar10 import NASCifar10A, NASCifar10B
 
 
 class ExponentialMovingAverage(object):

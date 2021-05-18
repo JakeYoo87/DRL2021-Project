@@ -7,3 +7,4 @@ checkpoint/
 *.tfrecord
 *.pth
 datasets/cifar10
+result/

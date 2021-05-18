@@ -23,7 +23,7 @@ from copy import deepcopy
 import ConfigSpace
 import numpy as np
 
-from example.nas_cifar10 import NASCifar10A, NASCifar10B
+from nasbench101_cifar10 import NASCifar10A, NASCifar10B
 
 
 class Model(object):
