@@ -11,5 +11,6 @@ torchvision
 tqdm
 tensorflow-gpu==1.15
 tensorflow==1.15
+tensorflow-probability==0.8.0
 yacs
 simplejson

@@ -205,18 +205,6 @@ if args.benchmark == "nas_cifar10a":
 elif args.benchmark == "nas_cifar10b":
     b = NASCifar10B(data_dir=args.data_dir)
 
-elif args.benchmark == "protein_structure":
-    b = FCNetProteinStructureBenchmark(data_dir=args.data_dir)
-
-elif args.benchmark == "slice_localization":
-    b = FCNetSliceLocalizationBenchmark(data_dir=args.data_dir)
-
-elif args.benchmark == "naval_propulsion":
-    b = FCNetNavalPropulsionBenchmark(data_dir=args.data_dir)
-
-elif args.benchmark == "parkinsons_telemonitoring":
-    b = FCNetParkinsonsTelemonitoringBenchmark(data_dir=args.data_dir)
-
 output_path = os.path.join(args.output_path, "rl")
 os.makedirs(os.path.join(output_path), exist_ok=True)
 
