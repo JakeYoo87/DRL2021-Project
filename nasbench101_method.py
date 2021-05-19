@@ -7,6 +7,13 @@ import numpy as np
 
 import tensorflow as tf
 import tensorflow_probability as tfp
+import torch
+
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
+from torch.distributions import Categorical
 
 
 # common functions
@@ -130,137 +137,46 @@ class ExponentialMovingAverage(object):
     """Class that maintains an exponential moving average."""
 
     def __init__(self, momentum):
-        self._numerator = tf.Variable(0.0, dtype=tf.float32, trainable=False)
-        self._denominator = tf.Variable(0.0, dtype=tf.float32, trainable=False)
+        # self._numerator = tf.Variable(0.0, dtype=tf.float32, trainable=False)
+        # self._denominator = tf.Variable(0.0, dtype=tf.float32, trainable=False)
+        self._numerator = torch.tensor(0, dtype=torch.float32, requires_grad=False)
+        self._denominator = torch.tensor(0, dtype=torch.float32, requires_grad=False)
         self._momentum = momentum
 
     def update(self, value):
         """Update the moving average with a new sample."""
-        self._numerator.assign(self._momentum * self._numerator + (1 - self._momentum) * value)
-        self._denominator.assign(self._momentum * self._denominator + (1 - self._momentum))
+        self._numerator = self._momentum * self._numerator + (1 - self._momentum) * value
+        self._denominator = self._momentum * self._denominator + (1 - self._momentum)
 
     def value(self):
         """Return the current value of the moving average"""
-        return self._numerator / self._denominator
+        return self._numerator / (self._denominator + 1e-8)
 
 
-class REINFORCEOptimizer(object):
-    """Class that optimizes a set of categorical variables using REINFORCE."""
-
-    def __init__(self, reward, cat_variables, momentum):
-        # self._num_vertices = reward.num_vertices
-        # self._num_operations = len(reward.available_ops)
-        # self._num_edges = (self._num_vertices * (self._num_vertices - 1)) // 2
-        #
-        # self._edge_logits = tf.Variable(tf.zeros([self._num_edges, 2]))
-        # self._op_logits = tf.Variable(tf.zeros([self._num_vertices - 2,
-        #                                         self._num_operations]))
-        self._num_variables = len(cat_variables)
-        self._logits = [tf.Variable(tf.zeros([1, ci])) for ci in cat_variables]
-        self._baseline = ExponentialMovingAverage(momentum=momentum)
-        self._reward = reward
-        self._last_reward = 0.0
-        self._test_acc = 0.0
+class NaiveRL(nn.Module):
+    def __init__(self, cat_variables, reward_func):
+        super().__init__()
+        self._logits = nn.ParameterList([torch.nn.Parameter(torch.zeros(ci)) for ci in cat_variables])
+        self._reward_func = reward_func
 
     def step(self):
-        """Helper function for a single step of the REINFORCE algorithm."""
-        # Obtain a single sample from the current distribution.
-        # edge_dist = tfp.distributions.Categorical(logits=self._edge_logits)
-        # op_dist = tfp.distributions.Categorical(logits=self._op_logits)
-        dists = [tfp.distributions.Categorical(logits=li) for li in self._logits]
-        attempts = 0
+        # dists = [Categorical(F.softmax(li)) for li in self._logits]
+        dists = [Categorical(logits=li) for li in self._logits]
         while True:
-            sample = [di.sample() for di in dists]
-
+            action = [di.sample() for di in dists]
             # Compute the sample reward. Larger rewards are better.
-            reward = self._reward.compute_reward(sample)
-            attempts += 1
+            reward = self._reward_func.compute_reward(action)
             if reward > 0.001:
-                # print('num attempts: {}, reward: {}'.format(str(attempts), reward))
                 break
 
-        self._last_reward = reward
+        log_prob = sum([dists[i].log_prob(action[i]) for i in range(len(action))])
 
-        # Compute the log-likelihood the sample.
-        log_prob = tf.reduce_sum([dists[i].log_prob(sample[i]) for i in range(len(sample))])
-        # log_prob = (tf.reduce_sum(edge_dist.log_prob(edge_sample)) +
-        #             tf.reduce_sum(op_dist.log_prob(op_sample)))
-
-        # Update the baseline to reflect the current sample.
-        self._baseline.update(reward)
-
-        # Compute the advantage. This will be positive if the current sample is
-        # better than average, and will be negative otherwise.
-        advantage = reward - self._baseline.value()
-
-        # Here comes the REINFORCE magic. We'll update the gradients by
-        # differentiating with respect to this value. In practice, if advantage > 0
-        # then the update will increase the log-probability, and if advantage < 0
-        # then the update will decrease the log-probability.
-        objective = tf.stop_gradient(advantage) * log_prob
-
-        return objective
-
-    def trainable_variables(self):
-        # Return a list of trainable variables to update with gradient descent.
-        # return [self._edge_logits, self._op_logits]
-        return self._logits
-
-    def baseline(self):
-        """Return an exponential moving average of recent reward values."""
-        return self._baseline.value()
-
-    def last_reward(self):
-        """Returns the last reward earned."""
-        return self._last_reward
-
-    def test_acc(self):
-        """Returns the last test accuracy computed."""
-        return self._test_acc
-
-    def probabilities(self):
-        """Return a set of probabilities for each learned variable."""
-        # return [tf.nn.softmax(self._edge_logits),
-        #        tf.nn.softmax(self._op_logits)]
-        # return tf.nn.softmax(self._op_logits)  # More interesting to look at ops
-        return [tf.nn.softmax(li).numpy() for li in self._logits]
-
-
-def run_reinforce(optimizer, learning_rate, max_time, bench, num_steps, log_every_n_steps=1000):
-    """Run multiple steps of REINFORCE to optimize a fixed reward function."""
-    trainable_variables = optimizer.trainable_variables()
-    trace = []
-    # run = [[0.0, 0.0, 0.0]]
-
-    # step = 0
-    for step in range(num_steps):
-        # step += 1
-        # Compute the gradient of the sample's log-probability w.r.t. the logits.
-        with tf.GradientTape() as tape:
-            objective = optimizer.step()
-
-        # Update the logits using gradient ascent.
-        gradients = tape.gradient(objective, trainable_variables)
-        for grad, var in zip(gradients, trainable_variables):
-            var.assign_add(learning_rate * grad)
-
-        trace.append(optimizer.probabilities())
-        # run.append([nasbench.training_time_spent,
-        #             optimizer.last_reward(),  # validation acc
-        #             optimizer.test_acc()])  # test acc (avg)
-        if step % log_every_n_steps == 0:
-            print('step = {:d}, baseline reward = {:.5f}'.format(
-                step, optimizer.baseline().numpy()))
-        # if nasbench.training_time_spent > max_time:
-        #     break
-
-    return trace
+        return action, log_prob, reward
 
 
 def run_rl(runtime, b, cs):
-    # Eager mode used for RL baseline
-    tf.enable_eager_execution()
-    tf.enable_resource_variables()
+    # tf.enable_eager_execution()
+    # tf.enable_resource_variables()
     nb_reward = Reward(b)
     #
     cat_variables = []
@@ -270,13 +186,27 @@ def run_rl(runtime, b, cs):
         elif type(h) == ConfigSpace.hyperparameters.CategoricalHyperparameter:
             cat_variables.append(len(h.choices))
 
-    optimizer = REINFORCEOptimizer(reward=nb_reward, cat_variables=cat_variables, momentum=0.9)
-    trace = run_reinforce(
-        optimizer=optimizer,
-        learning_rate=1e-2,
-        max_time=5e6,
-        bench=b,
-        num_steps=100,
-        log_every_n_steps=100)
+    baseline = ExponentialMovingAverage(momentum=0.9)
+    net = NaiveRL(cat_variables, nb_reward)
+    optimizer = optim.AdamW(net.parameters(), lr=0.001)
 
-    return trace
+    last_time = 0
+    while b.get_runtime() < runtime:
+        last_time = print_stats(b, last_time)
+        optimizer.zero_grad()
+        # Compute the gradient of the sample's log-probability w.r.t. the logits.
+        action, log_prob, reward = net.step()
+        # Compute the log-likelihood the sample.
+        # log_prob = (tf.reduce_sum(edge_dist.log_prob(edge_sample)) + tf.reduce_sum(op_dist.log_prob(op_sample)))
+        # Update the baseline to reflect the current sample.
+        baseline.update(reward)
+        # Advantage will be positive if the current sample is better than average.
+        advantage = reward - baseline.value()
+        # Here comes the REINFORCE magic. We'll update the gradients by differentiating with respect to this value.
+        # If advantage > 0, then the update will increase the log-probability,
+        # If advantage < 0, then the update will decrease the log-probability.
+        loss = advantage * log_prob
+        loss.backward()
+        optimizer.step()
+
+    return
