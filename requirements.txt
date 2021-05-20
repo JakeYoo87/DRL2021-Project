@@ -14,3 +14,4 @@ tensorflow==1.15
 tensorflow-probability==0.8.0
 yacs
 simplejson
+hpbandster
