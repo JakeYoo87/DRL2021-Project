@@ -224,7 +224,7 @@ class NaiveRL(nn.Module):
         return action, log_prob, reward
 
 
-def run_rl(runtime, b, cs):
+def run_reinforce(runtime, b, cs):
     # tf.enable_eager_execution()
     # tf.enable_resource_variables()
     nb_reward = Reward(b)

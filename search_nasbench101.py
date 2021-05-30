@@ -3,7 +3,7 @@ import json
 import argparse
 
 from nasbench101_cifar10 import NASCifar10A, NASCifar10B, NASCifar10C
-from nasbench101_method import random_search, regularized_evolution, run_rl, run_bohb
+from nasbench101_method import random_search, regularized_evolution, run_reinforce, run_bohb
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--run_iter', default=0, type=int, nargs='?', help='unique number to identify this run')
@@ -34,8 +34,8 @@ elif args.run_method == 're':
     _ = regularized_evolution(b, cs, args.runtime,
                               population_size=100,
                               sample_size=10)
-elif args.run_method == 'rl':
-    run_rl(args.runtime, b, cs)
+elif args.run_method == 'reinforce':
+    run_reinforce(args.runtime, b, cs)
 elif args.run_method == 'bohb':
     run_bohb(args.runtime, b, cs)
 
