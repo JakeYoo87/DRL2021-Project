@@ -133,6 +133,27 @@ class NASCifar10A(NASCifar10):
         self.record_valid(config, data, model_spec)
         return 1 - data["validation_accuracy"], data["training_time"]
 
+    def objective_function_from_matrix(self, matrix, budget=108):
+        if self.multi_fidelity is False:
+            assert budget == 108
+
+        # if not graph_util.is_full_dag(matrix) or graph_util.num_edges(matrix) > MAX_EDGES:
+        if graph_util.num_edges(matrix) > MAX_EDGES:
+            # self.record_invalid(config, 1, 1, 0)
+            return 1, 0
+
+        labeling = ['input', 'conv1x1-bn-relu', 'conv3x3-bn-relu', 'conv3x3-bn-relu',
+                    'conv3x3-bn-relu', 'maxpool3x3', 'output']
+        model_spec = api.ModelSpec(matrix, labeling)
+        try:
+            data = self.dataset.query(model_spec, epochs=budget)
+        except api.OutOfDomainError:
+            # self.record_invalid(config, 1, 1, 0)
+            return 1, 0
+
+        self.record_valid(matrix, data, model_spec)
+        return 1 - data["validation_accuracy"], data["training_time"]
+
     @staticmethod
     def get_configuration_space():
         cs = ConfigSpace.ConfigurationSpace()

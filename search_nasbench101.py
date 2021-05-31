@@ -3,16 +3,17 @@ import json
 import argparse
 
 from nasbench101_cifar10 import NASCifar10A, NASCifar10B, NASCifar10C
-from nasbench101_method import random_search, regularized_evolution, run_reinforce, run_bohb
+from nasbench101_method import random_search, regularized_evolution, run_reinforce, run_bohb, run_rl
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--run_iter', default=0, type=int, nargs='?', help='unique number to identify this run')
-parser.add_argument('--run_method', default="bohb", type=str)
+parser.add_argument('--run_method', default="rl", type=str)
 parser.add_argument('--runtime', default=1e7, type=float)
 parser.add_argument('--benchmark', default="nas_cifar10a", type=str, nargs='?', help='specifies the benchmark')
 parser.add_argument('--output_path', default="result", type=str, nargs='?',
                     help='specifies the path where the results will be saved')
-parser.add_argument('--data_dir', default="checkpoint/", type=str, nargs='?', help='specifies the path to the tabular data')
+parser.add_argument('--data_dir', default="checkpoint/", type=str, nargs='?',
+                    help='specifies the path to the tabular data')
 
 args = parser.parse_args()
 
@@ -36,6 +37,8 @@ elif args.run_method == 're':
                               sample_size=10)
 elif args.run_method == 'reinforce':
     run_reinforce(args.runtime, b, cs)
+elif args.run_method == 'rl':
+    run_rl(args.runtime, b, cs)
 elif args.run_method == 'bohb':
     run_bohb(args.runtime, b, cs)
 
