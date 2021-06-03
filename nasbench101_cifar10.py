@@ -4,6 +4,7 @@ import ConfigSpace
 import numpy as np
 from nasbench import api
 from nasbench.lib import graph_util
+import collections
 
 MAX_EDGES = 9
 VERTICES = 7
@@ -34,7 +35,7 @@ class NASCifar10(object):
         self.costs = []
 
     @staticmethod
-    def objective_function(self, config):
+    def objective_function_from_config(self, config):
         pass
 
     def get_runtime(self):
@@ -72,40 +73,56 @@ class NASCifar10(object):
     def get_configuration_space():
         pass
 
-    def get_results(self, ignore_invalid_configs=False):
+    def get_results(self, ignore_invalid_configs=False, window_len=10):
 
-        regret_validation = []
-        regret_test = []
+        regret_validations = []
+        regret_validations_min = []
+        regret_validations_window = collections.deque(maxlen=window_len)
+        regret_validations_moving_avg = []
+        #
+        regret_tests = []
+        regret_tests_min = []
+        regret_tests_window = collections.deque(maxlen=window_len)
+        regret_tests_moving_avg = []
+        #
         runtime = []
         rt = 0
-
-        inc_valid = np.inf
-        inc_test = np.inf
 
         for i in range(len(self.X)):
 
             if ignore_invalid_configs and self.costs[i] == 0:
                 continue
 
-            if inc_valid > self.y_valid[i]:
-                inc_valid = self.y_valid[i]
-                inc_test = self.y_test[i]
+            regret_validation = float(self.y_valid[i] - self.y_star_valid)
+            regret_test = float(self.y_test[i] - self.y_star_test)
+            #
+            regret_validations.append(regret_validation)
+            regret_validations_min.append(np.min(regret_validations))
+            regret_validations_window.append(regret_validation)
+            regret_validations_moving_avg.append(np.mean(regret_validations_window))
 
-            regret_validation.append(float(inc_valid - self.y_star_valid))
-            regret_test.append(float(inc_test - self.y_star_test))
+            regret_tests.append(regret_test)
+            regret_tests_min.append(np.min(regret_tests))
+            regret_tests_window.append(regret_validation)
+            regret_tests_moving_avg.append(np.mean(regret_tests_window))
+            #
             rt += self.costs[i]
             runtime.append(float(rt))
 
         res = dict()
-        res['regret_validation'] = regret_validation
-        res['regret_test'] = regret_test
+        res['regret_validations'] = regret_validations
+        res['regret_tests'] = regret_tests
+        res['regret_validations_min'] = regret_validations_min
+        res['regret_tests_min'] = regret_tests_min
+        res['regret_validations_moving_avg'] = regret_validations_moving_avg
+        res['regret_tests_moving_avg'] = regret_tests_moving_avg
         res['runtime'] = runtime
 
         return res, len(runtime)
 
 
 class NASCifar10A(NASCifar10):
-    def objective_function(self, config, budget=108):
+    def objective_function_from_config(self, config, budget=108):
         if self.multi_fidelity is False:
             assert budget == 108
 
@@ -170,7 +187,7 @@ class NASCifar10A(NASCifar10):
 
 
 class NASCifar10B(NASCifar10):
-    def objective_function(self, config, budget=108):
+    def objective_function_from_config(self, config, budget=108):
         if self.multi_fidelity is False:
             assert budget == 108
 

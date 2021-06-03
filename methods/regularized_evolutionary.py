@@ -19,7 +19,7 @@ class Model(object):
 
 
 def train_and_eval(config, b):
-    y, cost = b.objective_function(config)
+    y, cost = b.objective_function_from_config(config)
     # returns negative error (similar to maximizing accuracy)
     # return -y
     return 1 - y, cost

@@ -16,7 +16,7 @@ class MyWorker(Worker):
         self.b = b
 
     def compute(self, config, budget, **kwargs):
-        y, cost = self.b.objective_function(config, budget=108)
+        y, cost = self.b.objective_function_from_config(config, budget=108)
         return ({
             'loss': float(y),
             'info': float(cost)})
@@ -42,7 +42,7 @@ def run_bohb(runtime, b, cs):
                 nameserver=ns_host, nameserver_port=ns_port,
                 ping_interval=10, min_bandwidth=0.3)
 
-    n_iters = 100
+    n_iters = 300
     results = bohb.run(n_iters, min_n_workers=num_workers)
 
     bohb.shutdown(shutdown_workers=True)

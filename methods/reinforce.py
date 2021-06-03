@@ -15,7 +15,7 @@ class Reward(object):
 
     def compute_reward(self, sample):
         config = ConfigSpace.Configuration(self.bench.get_configuration_space(), vector=sample)
-        y, c = self.bench.objective_function(config)
+        y, c = self.bench.objective_function_from_config(config)
         fitness = 1 - float(y)
         return fitness
 
