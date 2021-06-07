@@ -6,15 +6,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+import ConfigSpace
+
 from torch.distributions import Categorical
 
 from methods.common import print_stats
 
-BUFFER_SIZE = int(1e5)  # replay buffer size
+BUFFER_SIZE = int(2e4)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
-LR = 5e-4  # learning rate
+LR = 1e-3  # learning rate
 UPDATE_EVERY = 4  # how often to update the network
 
 
@@ -35,7 +37,7 @@ class QNetwork(nn.Module):
 class Agent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, device, seed=0):
+    def __init__(self, state_size, action_size, ops, device, seed=0):
         """Initialize an Agent object.
 
         Params
@@ -44,6 +46,8 @@ class Agent():
             action_size (int): dimension of each action
             seed (int): random seed
         """
+        self.ops = nn.ParameterList([torch.nn.Parameter(torch.zeros(op)) for op in ops])
+        self.ops_sampled = None
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(seed)
@@ -71,8 +75,20 @@ class Agent():
                 experiences = self.memory.sample()
                 self.learn(experiences, GAMMA)
 
+    def set_ops(self):
+        # dists = [Categorical(logits=op) for op in self.ops]
+        # self.ops_sampled = torch.cat([di.sample().reshape(1) for di in dists])
+        self.ops_sampled = torch.from_numpy(np.array([0, 0, 1, 1, 2]))
+
+        return self.ops_sampled
+
+    def get_state(self, ops, edges):
+        edges = torch.from_numpy(edges)
+        state = torch.cat([edges, ops]).unsqueeze(0).float()
+
+        return state.to(self.device)
+
     def act(self, state, eps=0.):
-        state = torch.from_numpy(state).float().view(-1).unsqueeze(0).to(self.device)
         self.qnetwork_local.eval()
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
@@ -166,48 +182,50 @@ class ReplayBuffer:
 
 class Environment(object):
 
-    def __init__(self, vertice, b):
-        self.vertice = vertice
-        # self.nb_reward = Reward(b)
+    def __init__(self, edges, b):
         self.bench = b
-        self.matrix = np.zeros([self.vertice, self.vertice], dtype=np.int8)
+        self.edges = edges
 
     def reset(self):
-        self.matrix = np.zeros([self.vertice, self.vertice], dtype=np.int8)
-        self.matrix[0][2] = 1  # input -> 3x3 conv
-        self.matrix[2][6] = 1  # 3x3 conv -> output
+        return np.zeros(self.edges, dtype=np.int8)
 
-        return self.matrix
-
-    def get_reward(self, matrix):
-        # config = ConfigSpace.Configuration(self.bench.get_configuration_space())
-        y, c = self.bench.objective_function_from_matrix(matrix)
+    def get_reward(self, states):
+        states = [int(state) for state in states.tolist()[0]]
+        config = ConfigSpace.Configuration(self.bench.get_configuration_space(), vector=states)
+        y, c = self.bench.objective_function_from_config(config, cond_record=6)
+        # y, c = self.bench.objective_function_from_matrix(matrix)
         fitness = 1 - float(y)
         return fitness, c
 
-    def step(self, action):
-        idx = np.triu_indices(self.vertice, k=1)
-        row = idx[0][action]
-        col = idx[1][action]
-        self.matrix[row][col] = 1
-        reward, train_time = self.get_reward(self.matrix)
+    def step(self, state, action):
+        next_state = state.clone()
+        next_state[:,action] = 1
+        reward, train_time = self.get_reward(next_state)
         done = False
         if train_time == 0:
             done = True
 
-        return self.matrix, reward, done
+        return next_state, reward, done
 
 
 def run_rl(runtime, b, cs):
     #
-    # baseline = ExponentialMovingAverage(momentum=0.9)
-    env = Environment(vertice=7, b=b)
+    VERTICES = 7
+    ops = []
+    edges = []
+    for h in cs.get_hyperparameters():
+        if 'op' in h.name:
+            ops.append(h.num_choices)
+        elif 'edge' in h.name:
+            edges.append(h.num_choices)
+    #
+    env = Environment(edges=len(edges), b=b)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    agent = Agent(49, 21, device)
+    agent = Agent(len(ops) + len(edges), len(edges), ops, device)
 
     last_time = 0
     eps_start = 1.0
-    eps_end = 0.01
+    eps_end = 0.005
     eps_decay = 0.995
     scores = []
     scores_window = collections.deque(maxlen=100)
@@ -215,14 +233,19 @@ def run_rl(runtime, b, cs):
     while b.get_runtime() < runtime:
         last_time = print_stats(b, last_time)
         #
-        matrix = env.reset()
+        edges = env.reset()
+        ops_sampled = agent.set_ops()
+        state = agent.get_state(ops_sampled, edges)
         score = 0
-        while np.sum(matrix) <= 9:
-            action = agent.act(matrix, eps)
-            next_matrix, reward, done = env.step(action)
-            agent.step(matrix, action, reward, next_matrix, done)
-            matrix = next_matrix
+        cnt = 0
+        while cnt < 9:
+            # record only when cnt >= 6?
+            action = agent.act(state, eps)
+            next_state, reward, done = env.step(state, action)
+            agent.step(state, action, reward, next_state, done)
+            state = next_state
             score += reward
+            cnt += 1
             # if done:
             #     break
         scores_window.append(score)

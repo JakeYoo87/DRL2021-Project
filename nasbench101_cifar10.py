@@ -23,6 +23,7 @@ class NASCifar10(object):
         self.y_valid = []
         self.y_test = []
         self.costs = []
+        self.num_edges = []
 
         self.y_star_valid = 0.04944576819737756  # lowest mean validation error
         self.y_star_test = 0.056824247042338016  # lowest mean test error
@@ -53,8 +54,9 @@ class NASCifar10(object):
         self.y_test.append(test)
         self.costs.append(costs)
 
-    def record_valid(self, config, data, model_spec):
+    def record_valid(self, config, data, model_spec, num_edges):
 
+        self.num_edges.append(num_edges)
         self.X.append(config)
 
         # compute mean test error for the final budget
@@ -117,12 +119,13 @@ class NASCifar10(object):
         res['regret_validations_moving_avg'] = regret_validations_moving_avg
         res['regret_tests_moving_avg'] = regret_tests_moving_avg
         res['runtime'] = runtime
+        res['num_edges_avg'] = np.mean(self.num_edges)
 
         return res, len(runtime)
 
 
 class NASCifar10A(NASCifar10):
-    def objective_function_from_config(self, config, budget=108):
+    def objective_function_from_config(self, config, budget=108, cond_record=0):
         if self.multi_fidelity is False:
             assert budget == 108
 
@@ -134,7 +137,8 @@ class NASCifar10A(NASCifar10):
             matrix[row, col] = config["edge_%d" % i]
 
         # if not graph_util.is_full_dag(matrix) or graph_util.num_edges(matrix) > MAX_EDGES:
-        if graph_util.num_edges(matrix) > MAX_EDGES:
+        num_edges = graph_util.num_edges(matrix)
+        if num_edges > MAX_EDGES:
             # self.record_invalid(config, 1, 1, 0)
             return 1, 0
 
@@ -147,7 +151,11 @@ class NASCifar10A(NASCifar10):
             # self.record_invalid(config, 1, 1, 0)
             return 1, 0
 
-        self.record_valid(config, data, model_spec)
+        if cond_record > 0:
+            if num_edges >= cond_record:
+                self.record_valid(config, data, model_spec, num_edges)
+        else:
+            self.record_valid(config, data, model_spec, num_edges)
         return 1 - data["validation_accuracy"], data["training_time"]
 
     def objective_function_from_matrix(self, matrix, budget=108):

@@ -64,6 +64,7 @@ with open(os.path.join(args.output_path, save_file), "w") as f:
                                              res['regret_validations_moving_avg'][i],
                                              res['regret_tests_moving_avg'][i])
                     )
+print('number of edges (avg): %.2f' % res['num_edges_avg'])
 
 # best_valid = 0.9505
 # best_test = 0.9431
