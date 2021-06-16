@@ -76,9 +76,9 @@ class Agent():
                 self.learn(experiences, GAMMA)
 
     def set_ops(self):
-        # dists = [Categorical(logits=op) for op in self.ops]
-        # self.ops_sampled = torch.cat([di.sample().reshape(1) for di in dists])
-        self.ops_sampled = torch.from_numpy(np.array([0, 0, 1, 1, 2]))
+        dists = [Categorical(logits=op) for op in self.ops]
+        self.ops_sampled = torch.cat([di.sample().reshape(1) for di in dists])
+        # self.ops_sampled = torch.from_numpy(np.array([0, 0, 1, 1, 2]))
 
         return self.ops_sampled
 
@@ -208,7 +208,7 @@ class Environment(object):
         return next_state, reward, done
 
 
-def run_rl(runtime, b, cs):
+def run_rl_dqn(runtime, b, cs):
     #
     VERTICES = 7
     ops = []

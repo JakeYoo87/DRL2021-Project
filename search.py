@@ -5,7 +5,7 @@ from methods.bohb import run_bohb
 from methods.random_search import random_search
 from methods.regularized_evolutionary import regularized_evolution
 from methods.reinforce import run_reinforce
-from methods.rl import run_rl
+from methods.rl_dqn import run_rl_dqn
 from nasbench101_cifar10 import NASCifar10A, NASCifar10B
 
 import random
@@ -46,7 +46,7 @@ elif args.run_method == 're':
 elif args.run_method == 'reinforce':
     run_reinforce(args.runtime, b, cs)
 elif args.run_method == 'rl':
-    run_rl(args.runtime, b, cs)
+    run_rl_dqn(args.runtime, b, cs)
 elif args.run_method == 'bohb':
     run_bohb(args.runtime, b, cs)
 
